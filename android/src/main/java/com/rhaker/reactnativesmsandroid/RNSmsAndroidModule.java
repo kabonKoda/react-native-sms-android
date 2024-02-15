@@ -154,7 +154,7 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
             }
             
             try {
-                reactContext.startActivityForResult(sendIntent, REQUEST_CODE, sendIntent.getExtras());
+                this.reactContext.startActivity(sendIntent);
                 callback.invoke(null,"success");
             } catch (Exception e) {
                 callback.invoke(null,"error");
