@@ -90,7 +90,6 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void send(ReadableMap options, final Callback callback) {
-        this.callback = callback;
 
         String body = options.hasKey("body") ? options.getString("body") : null;
         ReadableArray recipients = options.hasKey("recipients") ? options.getArray("recipients") : null;
