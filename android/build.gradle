@@ -35,4 +35,6 @@ repositories {
 
 dependencies {
     implementation "com.facebook.react:react-native:${safeExtGet('reactNative', '+')}"
+    implementation 'androidx.core:core:1.7.0'
+
 }
