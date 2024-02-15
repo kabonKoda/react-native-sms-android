@@ -56,7 +56,6 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
         this.reactContext = reactContext;
     }
 
-    @Override
     public String getName() {
       return "SmsAndroid";
     }
