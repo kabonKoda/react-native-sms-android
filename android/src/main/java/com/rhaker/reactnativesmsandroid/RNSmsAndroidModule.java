@@ -1,5 +1,6 @@
 package com.rhaker.reactnativesmsandroid;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -11,6 +12,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Telephony;
 import android.telephony.SmsManager;
+import android.telephony.SubscriptionInfo;
 import android.util.Log;
 import android.database.Cursor;
 
@@ -35,11 +37,13 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
     private static final String TAG = RNSmsAndroidModule.class.getSimpleName();
 
     private ReactApplicationContext reactContext;
+    private static final int REQUEST_CODE = 5235;
 
     // set the activity - pulled in from Main
     public RNSmsAndroidModule(ReactApplicationContext reactContext) {
-      super(reactContext);
-      this.reactContext = reactContext;
+        super(reactContext);
+        this.reactContext = reactContext;
+        reactContext.addActivityEventListener(this);
     }
 
     @Override
@@ -48,52 +52,117 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void sms(String phoneNumberString, String body, String sendType, Callback callback) {
-
-        // send directly if user requests and android greater than 4.4
-        if ((sendType.equals("sendDirect")) && (body != null) && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
-
-            try {
-                SmsManager smsManager = SmsManager.getDefault();
-                smsManager.sendTextMessage(phoneNumberString,null,body,null,null);
-                callback.invoke(null,"success");
+    public void getAllSubscriptionIds(Promise promise) {
+        ReactApplicationContext context = getReactApplicationContext();
+    
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            promise.reject("PERMISSION_NOT_GRANTED", "READ_PHONE_STATE permission not granted");
+            return;
+        }
+    
+        SubscriptionManager subscriptionManager = SubscriptionManager.from(context);
+        List<SubscriptionInfo> subscriptionInfoList = subscriptionManager.getActiveSubscriptionInfoList();
+    
+        // Check if the list is not empty
+        if (subscriptionInfoList != null && !subscriptionInfoList.isEmpty()) {
+            WritableArray subscriptionIds = Arguments.createArray();
+    
+            for (SubscriptionInfo subscriptionInfo : subscriptionInfoList) {
+                int subscriptionId = subscriptionInfo.getSubscriptionId();
+                subscriptionIds.pushInt(subscriptionId);
             }
-
-            catch (Exception e) {
-                callback.invoke(null,"error");
-                e.printStackTrace();
-            }
-
+    
+            promise.resolve(subscriptionIds);
         } else {
+            promise.reject("NO_SUBSCRIPTIONS_FOUND", "No subscription information found");
+        }
+    }
 
-            // launch default sms package, user hits send
-            Intent sendIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("sms:" + phoneNumberString.trim()));
-            sendIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    @ReactMethod
+    public void send(ReadableMap options, final Callback callback) {
+        this.callback = callback;
 
-            if (body != null) {
-                sendIntent.putExtra("sms_body", body);
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(getCurrentActivity());
-                if (defaultSmsPackageName != null) {
-                    sendIntent.setPackage(defaultSmsPackageName);
-                }
-            }
-
-            try {
-                this.reactContext.startActivity(sendIntent);
-                callback.invoke(null,"success");
-            }
-
-            catch (Exception e) {
-                callback.invoke(null,"error");
-                e.printStackTrace();
-            }
-
+        String body = options.hasKey("body") ? options.getString("body") : null;
+        ReadableArray recipients = options.hasKey("recipients") ? options.getArray("recipients") : null;
+        Integer subscriptionId = options.hasKey("subscriptionId") ? options.getInt("subscriptionId") : null;
+        
+        // Attachment handling
+        ReadableMap attachment = null;
+        if (options.hasKey("attachment")) {
+            attachment = options.getMap("attachment");
         }
 
+        if ((attachment == null) && (recipients != null) && (recipients.size() > 0) && (body != null) && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
+            try {
+                SmsManager smsManager;
+                if (subscriptionId != null) { // Check for null
+                    smsManager = SmsManager.getSmsManagerForSubscriptionId(subscriptionId);
+                } else {
+                    smsManager = SmsManager.getDefault();
+                }
+
+                String recipient = recipients.getString(0); // Fix method call
+                ArrayList<String> parts = smsManager.divideMessage(body);
+                if (parts.size() > 1) {
+                    // Assuming 'null' for sentIntent and deliveryIntent, you might need to specify these.
+                    smsManager.sendMultipartTextMessage(recipient, null, parts, null, null);
+                } else {
+                    smsManager.sendTextMessage(recipient, null, body, null, null);
+                }
+
+                callback.invoke(null, "success");
+            } catch (Exception e) {
+                callback.invoke(e.getMessage(), "error");
+                e.printStackTrace();
+            }
+        } else {
+            // launch default sms package, user hits send
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(reactContext);
+                sendIntent = new Intent(Intent.ACTION_SEND);
+                if (defaultSmsPackageName != null){
+                    sendIntent.setPackage(defaultSmsPackageName);
+                }
+                sendIntent.setType("text/plain");
+            } else {
+                sendIntent = new Intent(Intent.ACTION_VIEW);
+                sendIntent.setType("vnd.android-dir/mms-sms");
+            }
+
+            sendIntent.putExtra("sms_body", body);
+            sendIntent.putExtra(sendIntent.EXTRA_TEXT, body);
+            sendIntent.putExtra("exit_on_sent", true);
+
+            if (attachment != null) {
+                Uri attachmentUrl = Uri.parse(attachment.getString("url"));
+                sendIntent.putExtra(Intent.EXTRA_STREAM, attachmentUrl);
+
+                String type = attachment.getString("androidType");
+                sendIntent.setType(type);
+            }
+
+            if (recipients != null && recipients.size() > 0) {
+                String separator = android.os.Build.MANUFACTURER.equalsIgnoreCase("Samsung") ? "," : ";";
+                StringBuilder recipientString = new StringBuilder();
+                for (int i = 0; i < recipients.size(); i++) {
+                    recipientString.append(recipients.getString(i));
+                    if (i < recipients.size() - 1) {
+                        recipientString.append(separator);
+                    }
+                }
+                sendIntent.putExtra("address", recipientString.toString());
+            }
+            
+            try {
+                reactContext.startActivityForResult(sendIntent, REQUEST_CODE, sendIntent.getExtras());
+                callback.invoke(null,"success");
+            } catch (Exception e) {
+                callback.invoke(null,"error");
+                e.printStackTrace();
+            }
+        }
     }
+
 
     @ReactMethod
     public void list(String filter, final Callback errorCallback, final Callback successCallback) {
