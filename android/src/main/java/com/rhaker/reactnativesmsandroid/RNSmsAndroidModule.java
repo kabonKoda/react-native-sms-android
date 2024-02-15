@@ -100,7 +100,7 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
             attachment = options.getMap("attachment");
         }
 
-        if ((attachment == null) && (recipients != null) && (recipients.size() > 0) && (body != null) && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
+        if ((attachment == null) && (recipients != null) && (recipients.size() == 1) && (body != null) && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
             try {
                 SmsManager smsManager;
                 if (subscriptionId != null) { // Check for null
