@@ -1,6 +1,7 @@
 package com.rhaker.reactnativesmsandroid;
 
 import android.app.Activity;
+
 import java.util.*;
 
 import com.facebook.react.ReactPackage;
@@ -18,9 +19,13 @@ public class RNSmsAndroidPackage implements ReactPackage {
       return Arrays.<NativeModule>asList(mModuleInstance);
     }
 
+    public List<Class<? extends JavaScriptModule>> createJSModules() {
+        return Collections.emptyList();
+    }
+
     @Override
     public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
         return Collections.emptyList();
     }
-}
 
+}
