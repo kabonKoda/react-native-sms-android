@@ -1,5 +1,6 @@
 package com.rhaker.reactnativesmsandroid;
 
+
 import android.Manifest;
 import android.app.Activity;
 import android.app.PendingIntent;
@@ -13,20 +14,30 @@ import android.os.Build;
 import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.util.Log;
 import android.database.Cursor;
+import androidx.core.app.ActivityCompat;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.lang.SecurityException;
 import java.lang.String;
 
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.NativeModule;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.ReadableArray;
+import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableArray;
+
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -43,7 +54,6 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
     public RNSmsAndroidModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
-        reactContext.addActivityEventListener(this);
     }
 
     @Override
@@ -117,6 +127,8 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
             }
         } else {
             // launch default sms package, user hits send
+            Intent sendIntent;
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(reactContext);
                 sendIntent = new Intent(Intent.ACTION_SEND);
