@@ -133,47 +133,54 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
                 e.printStackTrace();
             }
         } else {
-            // launch default sms package, user hits send
             Intent sendIntent;
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(reactContext);
-                sendIntent = new Intent(Intent.ACTION_SEND);
+                String defaultSmsPackageName = Telephony.Sms.getDefaultSmsPackage(reactContext); // Correctly obtaining the default SMS app.
+                sendIntent = new Intent(Intent.ACTION_SEND); // Intending to send content.
+                sendIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // Adding the FLAG_ACTIVITY_NEW_TASK flag.
+            
                 if (defaultSmsPackageName != null){
-                    sendIntent.setPackage(defaultSmsPackageName);
+                    sendIntent.setPackage(defaultSmsPackageName); // If there's a default SMS package, use it.
                 }
+            
+                // Initially set type to "text/plain". This might be overridden by attachment logic.
                 sendIntent.setType("text/plain");
             } else {
                 sendIntent = new Intent(Intent.ACTION_VIEW);
+                sendIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); // Adding the FLAG_ACTIVITY_NEW_TASK flag.
                 sendIntent.setType("vnd.android-dir/mms-sms");
             }
-
-            sendIntent.putExtra("sms_body", body);
-            sendIntent.putExtra(sendIntent.EXTRA_TEXT, body);
+            
+            sendIntent.putExtra("sms_body", body); // For compatibility with all messaging apps, duplicated below.
+            sendIntent.putExtra(Intent.EXTRA_TEXT, body); // Used with Intent.ACTION_SEND
             sendIntent.putExtra("exit_on_sent", true);
-
+            // "exit_on_sent" is not a standard Intent extra and might not be recognized by all SMS applications.
+            
             if (attachment != null) {
                 Uri attachmentUrl = Uri.parse(attachment.getString("url"));
                 sendIntent.putExtra(Intent.EXTRA_STREAM, attachmentUrl);
-
+                
                 String type = attachment.getString("androidType");
-                sendIntent.setType(type);
+                sendIntent.setType(type); // Correctly sets the MIME type for the attachment.
             }
-
+            
             if (recipients != null && recipients.size() > 0) {
                 String separator = android.os.Build.MANUFACTURER.equalsIgnoreCase("Samsung") ? "," : ";";
                 StringBuilder recipientString = new StringBuilder();
                 for (int i = 0; i < recipients.size(); i++) {
                     recipientString.append(recipients.getString(i));
                     if (i < recipients.size() - 1) {
-                        recipientString.append(separator);
+                        recipientString.append(separator); // Adding the separator based on manufacturer.
                     }
                 }
+                // Note: "address" extra may not work as intended for all devices or SMS applications.
+                // This functionality can vary.
                 sendIntent.putExtra("address", recipientString.toString());
             }
             
             try {
-                this.reactContext.startActivity(sendIntent);
+                reactContext.startActivity(sendIntent);
                 callback.invoke(null,"success");
             } catch (Exception e) {
                 callback.invoke(null,"error");
