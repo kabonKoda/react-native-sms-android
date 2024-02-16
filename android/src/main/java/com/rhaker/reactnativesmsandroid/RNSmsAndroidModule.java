@@ -61,7 +61,7 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void getAllSubscriptionIds(Promise promise) {
+    public void getSubscriptions(Promise promise) {
         ReactApplicationContext context = getReactApplicationContext();
     
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
@@ -72,21 +72,30 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
         SubscriptionManager subscriptionManager = SubscriptionManager.from(context);
         List<SubscriptionInfo> subscriptionInfoList = subscriptionManager.getActiveSubscriptionInfoList();
     
-        // Check if the list is not empty
         if (subscriptionInfoList != null && !subscriptionInfoList.isEmpty()) {
-            WritableArray subscriptionIds = Arguments.createArray();
+            WritableArray subscriptionDataArray = Arguments.createArray();
     
             for (SubscriptionInfo subscriptionInfo : subscriptionInfoList) {
+                WritableMap subscriptionData = Arguments.createMap();
                 int subscriptionId = subscriptionInfo.getSubscriptionId();
-                subscriptionIds.pushInt(subscriptionId);
+                CharSequence carrierName = subscriptionInfo.getCarrierName(); // Retrieving the carrier name
+                
+                subscriptionData.putInt("subscriptionId", subscriptionId);
+                if (carrierName != null) {
+                    subscriptionData.putString("carrierName", carrierName.toString());
+                } else {
+                    subscriptionData.putString("carrierName", "Unknown"); // Handle potential null carrier name
+                }
+    
+                subscriptionDataArray.pushMap(subscriptionData);
             }
     
-            promise.resolve(subscriptionIds);
+            promise.resolve(subscriptionDataArray);
         } else {
             promise.reject("NO_SUBSCRIPTIONS_FOUND", "No subscription information found");
         }
     }
-
+    
     @ReactMethod
     public void send(ReadableMap options, final Callback callback) {
 
